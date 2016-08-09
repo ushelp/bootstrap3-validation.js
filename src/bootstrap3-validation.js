@@ -39,6 +39,7 @@
  *   5.   1.0.4     mrlong    2014-6-15     修改在textarea没有type时的错误,扩展valid（）方法。
  *   6.   1.0.5     mrlong    2015-6-09     增加手机的校验方式，引用 surenkid 代码
  *   7.   1.0.6     mrlong    2015-6-09     增加图标显示，增加重置时清空内容
+ *   8.   1.0.7     ushelp    2016-8-09     修正页面多个不同表单同时使用不同 validation 扩展函数导致的全局覆盖问题
  *
  * =========================================================
  * bootstrap-validation.js 
@@ -74,8 +75,9 @@
         };
         
         return this.each(function() {
-            globalOptions = $.extend({}, $.fn.validation.defaults, options);  //这个全局的？
-            globalOptions.callback = callback;
+        	var key=formMark(this);
+            globalOptions[key] = $.extend({}, $.fn.validation.defaults, options);  //这个全局的？
+            globalOptions[key].callback = callback;
             // Add novalidate tag if HTML5.
             $(this).attr( "novalidate", "novalidate" );
             fform_style = isformstyle(this);
@@ -84,6 +86,8 @@
     };
 
     $.fn.valid=function(object,options,cb){
+    	var formObj=this;
+
         if (formState) { // 重复提交则返回
             return false;
         };
@@ -121,7 +125,7 @@
                 //check-type="required chinese"  //支持多个，以空格隔开。
                 valid = (el.attr('check-type')==undefined)?null:el.attr('check-type').split(' '); 
             if (!controlGroup.hasClass('has-success') && valid != null && valid.length > 0) {
-                if (!validateField(this, valid)) {
+                if (!validateField(this, valid,formObj)) {
                     if (wFocus == false) {
                         scrollTo(0, el[0].offsetTop - 50);
                         wFocus = true;
@@ -161,7 +165,7 @@
         //end
       
         if(mycb){mycb(validationError);}
-
+        
         return !validationError;        
     }
 
@@ -200,9 +204,15 @@
             return  0;
         };  
     };
+    
+    function formMark(formObj){
+    	var f=$("<div></div>").append($(formObj).clone().removeAttr("novalidate"));
+    	var fmark=$("<div></div>").append($(f.html()).empty()).html(); 
+    	return fmark;
+    }
 
     //验证字段
-    var validateField = function(field, valid) { 
+    var validateField = function(field, valid, formObj) { 
         var el = $(field), error = false, errorMsg = '';
         var minlength=(el.attr('minlength')?el.attr('minlength'):null);
         var range=(el.attr('range')?el.attr('range'):null); //
@@ -216,8 +226,8 @@
                 x = false;
                 flag = flag.substr(1, flag.length - 1);
             }
-
-            var rules = globalOptions.validRules;
+            var key=formMark(formObj);
+            var rules = globalOptions[key].validRules;
             for (j = 0; j < rules.length; j++) {
                 var rule = rules[j];
                 if (flag == rule.name) {
@@ -274,14 +284,14 @@
         };
 
         //外部验证回调方法
-        if (!error && globalOptions.callback){
+        if (!error && globalOptions[key].callback){
             var params={
                 msg:'',
                 err:error
             };
             var b = $.ajaxSettings.async;
             $.ajaxSetup({async : false});
-            globalOptions.callback(field,params); 
+            globalOptions[key].callback(field,params); 
             error = params.err;   
             if (error && (msg==null || errorMsg=='')){
                 errorMsg = params.msg;
@@ -298,7 +308,7 @@
         
         controlGroup.addClass(error==false?'has-success':'has-error');
         //在后面增加图标
-        if(globalOptions.icon===true ){
+        if(globalOptions[key].icon===true ){
           controlGroup.find('.form-control-feedback').remove();
           controlGroup.addClass('has-feedback'); //增加后面图示
         };
@@ -310,7 +320,7 @@
             if(fstyle == 0){
                 controlGroup.find("#valierr").remove();
                 el.after('<span class="help-block" id="valierr">' + errorMsg +'</span>');
-                if (globalOptions.icon===true ){
+                if (globalOptions[key].icon===true ){
                   if (el.find('option').length==0){
                     el.after('<span class="glyphicon '+ iconname +' form-control-feedback" aria-hidden="true"></span>');
                   }
@@ -321,7 +331,7 @@
                 }
             }
             else if(fstyle == 1){
-              if (globalOptions.icon===true ){
+              if (globalOptions[key].icon===true ){
                 if (el.find('option').length==0){
                   el.after('<span class="glyphicon ' + iconname + ' form-control-feedback" aria-hidden="true"></span>');
                 }
@@ -333,7 +343,7 @@
             else if (fstyle == 2){
                 controlGroup.find("#valierr").remove();
                 el.parent().after('<span class="help-block" id="valierr">' + errorMsg +'</span>');
-                if (globalOptions.icon===true ){
+                if (globalOptions[key].icon===true ){
                   if (el.find('option').length==0){
                     el.after('<span class="glyphicon '+ iconname +' form-control-feedback" aria-hidden="true"></span>');
                   }
@@ -355,7 +365,7 @@
             el.on('blur',function(){ // 失去焦点时
                 valid = (el.attr('check-type')==undefined)?null:el.attr('check-type').split(' ');
                 if (valid){
-                    validateField(this, valid);
+                    validateField(this, valid, obj);
                 }
             });
         });
@@ -366,13 +376,15 @@
             el.on('change',function(){ //
                 valid = (el.attr('check-type')==undefined)?null:el.attr('check-type').split(' ');
                 if (valid){
-                    validateField(this, valid);
+                    validateField(this, valid, obj);
                 }
             }); 
         });
-
+        
         //3.设置必填的标志*号
-        if (globalOptions.reqmark==true){
+        var key=formMark(obj);
+        
+        if (globalOptions[key].reqmark==true){
             if(fform_style==0){
                 $(obj).find(".form-group>label").each(function(){
                     var el=$(this);
